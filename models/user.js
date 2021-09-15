@@ -15,48 +15,39 @@ class User {
    */
 
   static async register({username, password, first_name, last_name, phone}) {
-    try {
-      if (!username || !password || !first_name || !last_name || !phone){
-        throw new ExpressError("All fields are required!", 400);
-      }
-      const hashedPassword = bcrypt.hash(password, BCRYPT_WORK_FACTOR);
-      const currentTime = new Date();
-
-      const result = await db.query(`
-        INSERT INTO users (username, password, first_name, last_name, phone, join_at)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING username, password, first_name, last_name, phone)`
-        , [username, hashedPassword, first_name, last_name, phone, currentTime]);
-      const user = result.rows[0];
-      return res.json(user);
-    } catch (err) {
-      return next(err);
+    if (!username || !password || !first_name || !last_name || !phone){
+      throw new ExpressError("All fields are required!", 400);
     }
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_WORK_FACTOR);
+    const currentTime = new Date();
+    const result = await db.query(`
+      INSERT INTO users (username, password, first_name, last_name, phone, join_at, last_login_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING username, password, first_name, last_name, phone`
+      , [username, hashedPassword, first_name, last_name, phone, currentTime, currentTime]);
+    const user = result.rows[0];
+    return user;
   }
 
   /** Authenticate: is this username/password valid? Returns boolean. */
 
   static async authenticate(username, password) {
-    try {
-      if (!username || !password){
-        throw  new ExpressError("All fields are required!", 400);
-      }
-      const result = await db.query(`
-        SELECT username, password FROM users
-        WHERE username = $1
-      `, [username])
-      const user = result.rows[0];
-      if (!user){
-        throw new ExpressError("username is not found", 404);
-      }
-      if (bcrypt.compare(password, user.password)){
-        return true;
-      }else{
-        return false;
-      };
-    } catch (err) {
-      return next(err);
+    if (!username || !password){
+      throw  new ExpressError("All fields are required!", 400);
     }
+    const result = await db.query(`
+      SELECT * FROM users
+      WHERE username = $1
+    `, [username])
+    const user = result.rows[0];
+    if (!user){
+      throw new ExpressError("username is not found", 404);
+    }
+    if (await bcrypt.compare(password, user.password)){
+      return true;
+    }else{
+      return false;
+    };
   }
 
   /** Update last_login_at for user */
@@ -72,21 +63,31 @@ class User {
         WHERE username = $2
         RETURNING username`,
         [currentTime, username]);
-      const user = result.rows.username;
+      const user = result.rows[0];
       if (!user){
         throw new ExpressError("username is not found", 404);
       }
-      console.log("Login  Timestamp is updated!");
+      //console.log("Last login timestamp is updated!");
       return;
     } catch (err) {
-      return next(err);
+      return err;
     }
   }
 
   /** All: basic info on all users:
    * [{username, first_name, last_name, phone}, ...] */
 
-  static async all() { }
+  static async all() {
+    try {
+      const result = await db.query(`
+      SELECT username, first_name, last_name, phone FROM users`)
+      const users = result.rows;
+      return  users;
+    } catch (err) {
+      return err;
+    }
+   
+  }
 
   /** Get: get user by username
    *
@@ -97,7 +98,21 @@ class User {
    *          join_at,
    *          last_login_at } */
 
-  static async get(username) { }
+  static async get(username) {
+    try {
+      const result = await db.query(`
+      SELECT username, first_name, last_name, phone, join_at, last_login_at FROM users
+      WHERE username = $1`,
+      [username]);
+      const user = result.rows[0];
+      if (!user){
+        throw new ExpressError("username is not found", 404);
+      }
+      return user;
+    } catch (err) {
+      return  err;
+    }
+  }
 
   /** Return messages from this user.
    *
@@ -107,7 +122,33 @@ class User {
    *   {username, first_name, last_name, phone}
    */
 
-  static async messagesFrom(username) { }
+  static async messagesFrom(username) {
+    try {
+      const result = await db.query(`
+        SELECT m.id, m.to_username as username, u2.first_name, u2.last_name, u2.phone, m.body, m.sent_at, m.read_at FROM messages m
+        JOIN users u ON m.from_username = u.username
+        JOIN users u2 ON m.to_username = u2.username
+        WHERE u.username = $1`,
+        [username]);
+      const messages = result.rows;
+      if (!messages){
+        throw new ExpressError("message is not found", 404);
+      }
+      const output = [];
+      for (let message of messages){
+        output.push({
+          id: message.id, 
+          to_user:{username: message.username, first_name: message.first_name, last_name: message.last_name, phone: message.phone},
+          body: message.body,
+          sent_at: message.sent_at,
+          read_at: message.read_at
+        })
+      }
+      return output;
+    } catch (err) {
+      return err;
+    }
+  }
 
   /** Return messages to this user.
    *
@@ -117,7 +158,33 @@ class User {
    *   {id, first_name, last_name, phone}
    */
 
-  static async messagesTo(username) { }
+  static async messagesTo(username) {
+    try {
+      const result = await db.query(`
+        SELECT m.id, m.from_username as username, u2.first_name, u2.last_name, u2.phone, m.body, m.sent_at, m.read_at FROM messages m
+        JOIN users u ON m.to_username = u.username
+        JOIN users u2 ON m.from_username = u2.username
+        WHERE u.username = $1`,
+        [username]);
+      const messages = result.rows;
+      if (!messages){
+        throw new ExpressError("message is not found", 404);
+      }
+      const output = [];
+      for (let message of messages){
+        output.push({
+          id: message.id, 
+          from_user:{username: message.username, first_name: message.first_name, last_name: message.last_name, phone: message.phone},
+          body: message.body,
+          sent_at: message.sent_at,
+          read_at: message.read_at
+        })
+      }
+      return output;
+    } catch (err) {
+      return err;
+    }
+   }
 }
 
 
