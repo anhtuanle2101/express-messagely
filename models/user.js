@@ -1,9 +1,7 @@
 /** User class for message.ly */
 const db = require("../db");
-const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const ExpressError = require("../expressError");
-const { ensureLoggedIn, ensureCorrectUser } = require("../middleware/auth");
 const { BCRYPT_WORK_FACTOR } = require("../config");
 
 /** User of the site. */
@@ -25,6 +23,7 @@ class User {
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING username, password, first_name, last_name, phone`
       , [username, hashedPassword, first_name, last_name, phone, currentTime, currentTime]);
+    
     const user = result.rows[0];
     return user;
   }
@@ -33,17 +32,17 @@ class User {
 
   static async authenticate(username, password) {
     if (!username || !password){
-      throw  new ExpressError("All fields are required!", 400);
+      throw new ExpressError("All fields are required!", 400);
     }
     const result = await db.query(`
-      SELECT * FROM users
+      SELECT username, password FROM users
       WHERE username = $1
     `, [username])
     const user = result.rows[0];
     if (!user){
-      throw new ExpressError("username is not found", 404);
+      return false;
     }
-    if (await bcrypt.compare(password, user.password)){
+    if ((await bcrypt.compare(password, user.password))===true){
       return true;
     }else{
       return false;

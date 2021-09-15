@@ -12,9 +12,12 @@ const SECRET_KEY = process.env.SECRET_KEY || "secret";
 
 const BCRYPT_WORK_FACTOR = 1;
 
+const JWT_OPTIONS = {  };
+
 
 module.exports = {
   DB_URI,
   SECRET_KEY,
   BCRYPT_WORK_FACTOR,
+  JWT_OPTIONS
 };
