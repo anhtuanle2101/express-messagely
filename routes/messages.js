@@ -39,7 +39,13 @@ router.get("/:id", ensureLoggedIn, async (req, res, next)=>{
  **/
 router.post("/", ensureLoggedIn, async (req, res, next)=>{
     try {
-        
+        const {to_username, body} = req.body;
+        const username = req.user.username; 
+        const message = await Message.create({from_username: username, to_username:to_username, body:body});
+        if (!message){
+            throw new ExpressError("Bad request", 400);
+        }
+        return res.json({message});
     } catch (err) {
         return next(err);
     }
@@ -53,6 +59,23 @@ router.post("/", ensureLoggedIn, async (req, res, next)=>{
  * Make sure that the only the intended recipient can mark as read.
  *
  **/
+router.post("/:id/read", ensureLoggedIn, async (req, res, next)=>{
+    try {
+        const {id} = req.body;
+        const message = await Message.get(id);
+        if (!message){
+            throw ExpressError("Bad request", 400);
+        }
+        if (message.to_user.username !== req.user.username){
+            throw new ExpressError("Only receipents of the message can mark read", 400);
+        }
+        
+        return res.json({message: await Message.markRead(id)});
+
+    } catch (err) {
+        return next(err);
+    }
+})
 
 
 module.exports = router;

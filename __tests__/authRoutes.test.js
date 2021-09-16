@@ -4,7 +4,7 @@ const jwt = require("jsonwebtoken");
 const app = require("../app");
 const db = require("../db");
 const User = require("../models/user");
-
+process.env.NODE_ENV = "test";
 
 describe("Auth Routes Test", function () {
 
