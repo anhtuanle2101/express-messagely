@@ -1,9 +1,7 @@
 const express = require("express");
 const router = express.Router();
-const ExpressError = require("../expressError");
 const User = require("../models/user");
 const jwt = require("jsonwebtoken");
-const { ensureLoggedIn, ensureCorrectUser } = require("../middleware/auth");
 const { SECRET_KEY, JWT_OPTIONS } = require("../config");
 
 /** POST /login - login: {username, password} => {token}
@@ -45,11 +43,11 @@ router.post("/login", async (req, res, next)=>{
         if (!username || !password || !first_name || !last_name || !phone){
             return res.status(400).json({msg: "all fields are required"});
         }
+
         const user = await User.register({username: username, password: password, first_name: first_name, last_name: last_name, phone: phone});
         if (!user){
             return res.status(400).json({msg: "registered unsuccessfully"});
         }
-        console.log("logged in");
 
         await User.updateLoginTimestamp(user.username);
         const payload = {username};
